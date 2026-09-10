@@ -96,11 +96,11 @@ You can force a refresh or inspect status manually:
 /docker-model-runner status
 ```
 
-Docker's model-list response supplies IDs and `dmr.context_window`, but not the full capability metadata needed by pi. The package uses the reported context window when present and otherwise registers conservative metadata for each discovered model:
+Docker's model-list response supplies IDs and `dmr.context_window`, but that field is the model's trained maximum rather than the runner's effective configured context size. It does not provide the full capability metadata needed by pi, so the package registers conservative metadata for each discovered model. Set the real configured context size in `models.json`:
 
 - text input only;
 - no reasoning controls;
-- API-reported context window (or 2,048 when absent);
+- 2,048 token context window;
 - 1,024 maximum output tokens;
 - local/zero token cost.
 

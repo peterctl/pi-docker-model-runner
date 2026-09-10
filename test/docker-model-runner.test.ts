@@ -42,7 +42,7 @@ test("discovers and normalizes OpenAI model IDs", async () => {
     const models = await discoverModels("http://localhost:12434", "proxy-token", new AbortController().signal);
     assert.deepEqual(models.map((model) => model.id), ["ai/qwen"]);
     assert.equal(models[0]?.baseUrl, DEFAULT_BASE_URL);
-    assert.equal(models[0]?.contextWindow, 32768);
+    assert.equal(models[0]?.contextWindow, 2048);
     assert.equal(request?.url, `${DEFAULT_BASE_URL}/models`);
     assert.equal(request?.headers.get("authorization"), "Bearer proxy-token");
   } finally {
