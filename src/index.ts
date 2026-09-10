@@ -1,5 +1,6 @@
 import { createProvider, openAICompletionsApi, type ApiKeyCredential } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { findDockerModelRunnerProvider, readDockerModelRunnerProviders } from "./models-json.ts";
 import {
   BASE_URL_ENV,
   credentialBaseUrl,
@@ -90,6 +91,23 @@ const provider = createProvider({
 
 export default function dockerModelRunnerExtension(pi: ExtensionAPI) {
   pi.registerProvider(provider);
+
+  // A models.json provider can use any ID (for example "dmr-office" or
+  // "dmr-lab"). When its baseUrl is a Docker Model Runner /engines/.../v1
+  // endpoint, attach dynamic discovery while leaving every user-specified
+  // models.json setting as the top-level override.
+  for (const configured of readDockerModelRunnerProviders()) {
+    if (configured.id === PROVIDER_ID) continue; // reserved for /login support
+    pi.registerProvider(configured.id, {
+      refreshModels: async (context) => {
+        if (!context.allowNetwork || context.signal.aborted) return [];
+        const current = findDockerModelRunnerProvider(configured.id);
+        if (!current) return [];
+        const key = context.credential?.type === "api_key" ? context.credential.key : undefined;
+        return discoverModels(current.baseUrl, key, context.signal, configured.id);
+      },
+    });
+  }
 
   pi.registerCommand("docker-model-runner", {
     description: "Show Docker Model Runner status or refresh its model catalog",

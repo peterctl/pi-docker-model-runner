@@ -49,6 +49,42 @@ A custom endpoint must be an HTTP(S) OpenAI base URL. A bare host URL is normali
 
 > **Security:** Docker Model Runner's API is unauthenticated. Do not expose it directly to an untrusted network. Put remote access behind TLS and suitable network/authentication controls.
 
+## Multiple connections and `models.json`
+
+Pi's `~/.pi/agent/models.json` is the recommended source of truth for multiple Docker Model Runner connections. Provider keys are free-form, so each key becomes a separate provider in `/model`. This package recognizes entries whose `baseUrl` is a Docker Model Runner OpenAI endpoint (`/engines/v1` or `/engines/<engine>/v1`) and attaches dynamic discovery to each one.
+
+```json
+{
+  "providers": {
+    "dmr-lab": {
+      "name": "Docker Model Runner (lab)",
+      "baseUrl": "http://lab.example.internal:12434/engines/v1",
+      "apiKey": "not-needed",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "my-model",
+          "name": "My model",
+          "reasoning": true,
+          "contextWindow": 262144,
+          "maxTokens": 32768,
+          "compat": { "thinkingFormat": "qwen-chat-template" }
+        }
+      ]
+    },
+    "dmr-desktop": {
+      "name": "Docker Model Runner (desktop)",
+      "baseUrl": "http://localhost:12434/engines/v1",
+      "apiKey": "not-needed",
+      "api": "openai-completions",
+      "models": []
+    }
+  }
+}
+```
+
+`models.json` has the final say over names, context sizes, reasoning/tool compatibility, and other per-model metadata. It is layered above the discovered catalog, so detailed entries you provide remain intact and newly returned IDs are added with conservative defaults. A model explicitly listed in `models.json` remains available even if discovery no longer returns it; remove that static entry when you want it gone. Existing configured connections and model overrides are re-read when `/model` refreshes. Add a **new provider key** and run `/reload` once so the extension can attach its discovery handler.
+
 ## Model discovery and refresh
 
 The package calls `GET <base-url>/models`, Docker Model Runner's OpenAI-compatible model-list endpoint. It deliberately does not poll in the background. pi invokes the provider's `refreshModels()` whenever its model registry is refreshed, including when opening/refreshing `/model`.
@@ -60,11 +96,11 @@ You can force a refresh or inspect status manually:
 /docker-model-runner status
 ```
 
-Docker's model-list response exposes model IDs but not the full capability metadata needed by pi. Version 1 therefore registers conservative metadata for each discovered model:
+Docker's model-list response supplies IDs and `dmr.context_window`, but not the full capability metadata needed by pi. The package uses the reported context window when present and otherwise registers conservative metadata for each discovered model:
 
 - text input only;
 - no reasoning controls;
-- 2,048 token context window;
+- API-reported context window (or 2,048 when absent);
 - 1,024 maximum output tokens;
 - local/zero token cost.
 

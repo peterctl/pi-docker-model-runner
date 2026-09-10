@@ -9,6 +9,17 @@ type ModelsPayload = {
   data?: unknown;
 };
 
+type ModelsListItem = {
+  id?: unknown;
+  dmr?: {
+    context_window?: unknown;
+  };
+};
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 /**
  * Normalize a Docker Model Runner OpenAI API URL.
  *
@@ -59,6 +70,7 @@ export async function discoverModels(
   baseUrl: string,
   apiKey: string | undefined,
   signal: AbortSignal,
+  provider = PROVIDER_ID,
 ): Promise<Model<"openai-completions">[]> {
   const headers: Record<string, string> = { Accept: "application/json" };
   // Docker Model Runner ignores Authorization. Sending it only when supplied
@@ -91,26 +103,31 @@ export async function discoverModels(
     throw new Error("Docker Model Runner returned an invalid OpenAI /models response (missing data array).");
   }
 
-  const ids = new Set<string>();
+  const models = new Map<string, { contextWindow?: number }>();
   for (const item of payload.data) {
     if (typeof item !== "object" || item === null) continue;
-    const id = (item as { id?: unknown }).id;
-    if (typeof id === "string" && id.trim()) ids.add(id.trim());
+    const { id, dmr } = item as ModelsListItem;
+    if (typeof id !== "string" || !id.trim()) continue;
+    const normalizedId = id.trim();
+    const contextWindow = positiveInteger(dmr?.context_window);
+    const previous = models.get(normalizedId);
+    models.set(normalizedId, { contextWindow: contextWindow ?? previous?.contextWindow });
   }
 
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  return [...ids].sort((a, b) => a.localeCompare(b)).map((id) => ({
+  return [...models.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([id, details]) => ({
     id,
     name: id,
     api: "openai-completions",
-    provider: PROVIDER_ID,
+    provider,
     baseUrl: normalizedBaseUrl,
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    // Docker's OpenAI model-list response exposes IDs but not capabilities.
-    // These safe defaults can be replaced by a future capability endpoint.
-    contextWindow: 2048,
+    // Docker Model Runner supplies dmr.context_window. The rest of its
+    // OpenAI model-list metadata is intentionally sparse, so models.json can
+    // override this and all other conservative defaults per model.
+    contextWindow: details.contextWindow ?? 2048,
     maxTokens: 1024,
     compat: {
       supportsDeveloperRole: false,
