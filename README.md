@@ -25,7 +25,7 @@ Restart pi (or run `/reload` if the package was installed into an active install
 
 The flow asks for an optional bearer token, validates the OpenAI-compatible `/models` endpoint, and reports the number of discovered models. The endpoint is saved as provider-scoped configuration in pi's normal credential storage. A token is stored by pi as a secret and is never written to this package's configuration.
 
-Docker Model Runner itself does **not** authenticate its API and ignores the `Authorization` header. An optional token is provided solely for deployments placed behind an authenticating reverse proxy.
+Docker Model Runner itself does **not** authenticate its API and ignores the `Authorization` header. An optional token is provided solely for deployments placed behind an authenticating reverse proxy. For a tokenless connection, the OpenAI client requires the package to send a harmless placeholder bearer value; Docker Model Runner ignores it.
 
 ## Requirements
 

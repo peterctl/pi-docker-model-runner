@@ -68,9 +68,10 @@ const provider = createProvider({
         const baseUrl = credentialBaseUrl(credential);
         if (!baseUrl) return undefined;
         return {
-          // Leave apiKey undefined when no token was entered. This prevents an
-          // Authorization header for runners that do not use authentication.
-          auth: { apiKey: credential?.key, baseUrl },
+          // The OpenAI client requires a non-empty key even for local servers.
+          // Docker Model Runner ignores Authorization, so this placeholder is
+          // harmless and is replaced by a real proxy token when one was saved.
+          auth: { apiKey: credential?.key || "not-needed", baseUrl },
           env: { [BASE_URL_ENV]: baseUrl },
           source: "stored Docker Model Runner connection",
         };
