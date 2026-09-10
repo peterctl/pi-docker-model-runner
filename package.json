@@ -1,0 +1,45 @@
+{
+  "name": "pi-docker-model-runner",
+  "version": "0.1.0",
+  "description": "Docker Model Runner provider for pi",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterctl/pi-docker-model-runner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/peterctl/pi-docker-model-runner/issues"
+  },
+  "homepage": "https://github.com/peterctl/pi-docker-model-runner#readme",
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "docker",
+    "docker-model-runner",
+    "llm",
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "npm run check && tsx --test test/**/*.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.84.4",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

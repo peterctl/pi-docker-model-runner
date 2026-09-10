@@ -1,0 +1,130 @@
+import { createProvider } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import type { ApiKeyCredential } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  BASE_URL_ENV,
+  credentialBaseUrl,
+  DEFAULT_BASE_URL,
+  discoverModels,
+  message,
+  PROVIDER_ID,
+  normalizeBaseUrl,
+} from "./docker-model-runner.ts";
+
+const provider = createProvider({
+  id: PROVIDER_ID,
+  name: "Docker Model Runner",
+  baseUrl: DEFAULT_BASE_URL,
+  auth: {
+    apiKey: {
+      name: "Docker Model Runner connection",
+      async login(interaction): Promise<ApiKeyCredential> {
+        const connection = await interaction.prompt({
+          type: "select",
+          message: "Docker Model Runner connection",
+          options: [
+            {
+              id: "local",
+              label: "Local Docker Model Runner",
+              description: DEFAULT_BASE_URL,
+            },
+            {
+              id: "custom",
+              label: "Custom endpoint",
+              description: "Remote runner or a non-default local endpoint",
+            },
+          ],
+        });
+
+        const enteredUrl = await interaction.prompt({
+          type: "text",
+          message: connection === "local" ? "Docker Model Runner URL" : "Docker Model Runner OpenAI base URL",
+          placeholder: connection === "local" ? DEFAULT_BASE_URL : "https://runner.example.com/engines/v1",
+        });
+        const baseUrl = normalizeBaseUrl(enteredUrl || (connection === "local" ? DEFAULT_BASE_URL : ""));
+
+        const key = (await interaction.prompt({
+          type: "secret",
+          message: "Bearer token (optional; Docker Model Runner itself does not require one)",
+          placeholder: "Leave blank for no Authorization header",
+        })).trim();
+
+        interaction.notify({ type: "progress", message: "Validating Docker Model Runner and discovering models…" });
+        const models = await discoverModels(baseUrl, key || undefined, interaction.signal);
+        interaction.notify({
+          type: "info",
+          message: `Connected to Docker Model Runner (${models.length} model${models.length === 1 ? "" : "s"} found).`,
+        });
+
+        return {
+          type: "api_key",
+          key: key || undefined,
+          env: { [BASE_URL_ENV]: baseUrl },
+        };
+      },
+      async check({ credential }) {
+        return credentialBaseUrl(credential) ? { type: "api_key", source: "stored Docker Model Runner connection" } : undefined;
+      },
+      async resolve({ credential }) {
+        const baseUrl = credentialBaseUrl(credential);
+        if (!baseUrl) return undefined;
+        return {
+          // Leave apiKey undefined when no token was entered. This prevents an
+          // Authorization header for runners that do not use authentication.
+          auth: { apiKey: credential?.key, baseUrl },
+          env: { [BASE_URL_ENV]: baseUrl },
+          source: "stored Docker Model Runner connection",
+        };
+      },
+    },
+  },
+  models: [],
+  async fetchModels(context) {
+    if (!context.allowNetwork || context.signal.aborted || context.credential?.type !== "api_key") return [];
+    const baseUrl = credentialBaseUrl(context.credential);
+    if (!baseUrl) return [];
+    return discoverModels(baseUrl, context.credential.key, context.signal);
+  },
+  api: openAICompletionsApi(),
+});
+
+export default function dockerModelRunnerExtension(pi: ExtensionAPI) {
+  pi.registerProvider(provider);
+
+  pi.registerCommand("docker-model-runner", {
+    description: "Show Docker Model Runner status or refresh its model catalog",
+    getArgumentCompletions: (prefix) => {
+      const commands = ["status", "refresh"];
+      const matches = commands.filter((command) => command.startsWith(prefix));
+      return matches.length ? matches.map((value) => ({ value, label: value })) : null;
+    },
+    handler: async (args, ctx) => {
+      const command = args.trim() || "status";
+      if (command !== "status" && command !== "refresh") {
+        ctx.ui.notify("Usage: /docker-model-runner [status|refresh]", "error");
+        return;
+      }
+
+      if (command === "refresh") {
+        const result = await ctx.modelRegistry.refresh({ providers: [PROVIDER_ID], force: true });
+        const error = result.errors.get(PROVIDER_ID);
+        if (error) {
+          ctx.ui.notify(`Docker Model Runner refresh failed: ${message(error)}`, "error");
+          return;
+        }
+        const count = ctx.modelRegistry.getAll().filter((model) => model.provider === PROVIDER_ID).length;
+        ctx.ui.notify(`Docker Model Runner refreshed: ${count} model${count === 1 ? "" : "s"} available.`, "info");
+        return;
+      }
+
+      const auth = ctx.modelRegistry.getProviderAuthStatus(PROVIDER_ID);
+      if (!auth.configured) {
+        ctx.ui.notify("Docker Model Runner is not configured. Run /login docker-model-runner.", "warning");
+        return;
+      }
+      const count = ctx.modelRegistry.getAll().filter((model) => model.provider === PROVIDER_ID).length;
+      ctx.ui.notify(`Docker Model Runner is configured; ${count} discovered model${count === 1 ? "" : "s"}.`, "info");
+    },
+  });
+}
