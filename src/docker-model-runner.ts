@@ -110,8 +110,8 @@ export async function discoverModels(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     // Docker's OpenAI model-list response exposes IDs but not capabilities.
     // These safe defaults can be replaced by a future capability endpoint.
-    contextWindow: 8192,
-    maxTokens: 4096,
+    contextWindow: 2048,
+    maxTokens: 1024,
     compat: {
       supportsDeveloperRole: false,
       supportsReasoningEffort: false,

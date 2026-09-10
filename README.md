@@ -64,8 +64,8 @@ Docker's model-list response exposes model IDs but not the full capability metad
 
 - text input only;
 - no reasoning controls;
-- 8,192 token context window;
-- 4,096 maximum output tokens;
+- 2,048 token context window;
+- 1,024 maximum output tokens;
 - local/zero token cost.
 
 These defaults avoid advertising features that a selected Docker model may not support. Future versions can add verified per-model capability detection or user overrides.
