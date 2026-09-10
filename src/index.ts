@@ -1,6 +1,4 @@
-import { createProvider } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import type { ApiKeyCredential } from "@earendil-works/pi-ai";
+import { createProvider, openAICompletionsApi, type ApiKeyCredential } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   BASE_URL_ENV,
