@@ -83,11 +83,18 @@ Pi's `~/.pi/agent/models.json` is the recommended source of truth for multiple D
 }
 ```
 
-`models.json` has the final say over names, context sizes, reasoning/tool compatibility, and other per-model metadata. It is layered above the discovered catalog, so detailed entries you provide remain intact and newly returned IDs are added with conservative defaults. A model explicitly listed in `models.json` remains available even if discovery no longer returns it; remove that static entry when you want it gone. Existing configured connections and model overrides are re-read when `/model` refreshes. Add a **new provider key** and run `/reload` once so the extension can attach its discovery handler.
+`models.json` has the final say over names, context sizes, reasoning/tool compatibility, and other per-model metadata. It is layered above the discovered catalog, so Docker-reported settings are used first, conservative defaults fill any gaps, and explicit `models.json` values still win on conflicts. A model explicitly listed in `models.json` remains available even if discovery no longer returns it; `/docker-model-runner status` and `/docker-model-runner refresh` warn when a static entry is now stale. Existing configured connections and model overrides are re-read when `/model` refreshes. Add a **new provider key** and run `/reload` once so the extension can attach its discovery handler.
 
 ## Model discovery and refresh
 
-The package calls `GET <base-url>/models`, Docker Model Runner's OpenAI-compatible model-list endpoint. It deliberately does not poll in the background. pi invokes the provider's `refreshModels()` whenever its model registry is refreshed, including when opening/refreshing `/model`.
+The package calls Docker Model Runner's documented read endpoints and merges what they expose:
+
+- `GET <openai-base-url>/models`
+- `GET <openai-base-url>/models/{namespace}/{name}`
+- `GET <runner-root>/models/{namespace}/{name}`
+- `POST <runner-root>/api/show`
+
+pi invokes the provider's `refreshModels()` whenever its model registry is refreshed, including when opening/refreshing `/model`. The package deliberately does not poll in the background.
 
 You can force a refresh or inspect status manually:
 
@@ -96,15 +103,15 @@ You can force a refresh or inspect status manually:
 /docker-model-runner status
 ```
 
-Docker's model-list response supplies IDs and `dmr.context_window`, but that field is the model's trained maximum rather than the runner's effective configured context size. It does not provide the full capability metadata needed by pi, so the package registers conservative metadata for each discovered model. Set the real configured context size in `models.json`:
+Docker's responses do not expose a complete Pi model definition, and some documented fields such as `dmr.context_window` can describe a model's maximum rather than the runner's effective configured runtime cap. This package therefore uses Docker Model Runner directly for every explicit field it can map, then falls back conservatively for anything Docker does not report clearly:
 
-- text input only;
-- no reasoning controls;
-- 2,048 token context window;
-- 1,024 maximum output tokens;
+- text input only unless Docker explicitly reports image input too;
+- no reasoning controls unless Docker explicitly reports them;
+- 2,048 token context window when Docker does not expose one;
+- 1,024 maximum output tokens when Docker does not expose one;
 - local/zero token cost.
 
-These defaults avoid advertising features that a selected Docker model may not support. Future versions can add verified per-model capability detection or user overrides.
+If you need a different name, context size, max output, or compatibility flag than Docker reports or omits, set it in `models.json`; those explicit values override discovery.
 
 ## Troubleshooting
 
